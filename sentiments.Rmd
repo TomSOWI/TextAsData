@@ -1,0 +1,121 @@
+
+
+---
+title: "Untitled"
+output: html_document
+date: "2023-07-03"
+---
+
+```{r}
+speeches <- readRDS("~/R-Projekte/TAD/speeches.RDS")
+
+speeches$date <- as.numeric(substring(speeches$date, first=1, last=4))
+table(speeches$date)
+
+
+speeches$faction_id[speeches$faction_id == 0] <- "AfD"
+speeches$faction_id[speeches$faction_id == 3] <- "Grüne"
+speeches$faction_id[speeches$faction_id == 4] <- "CDU/CSU"
+speeches$faction_id[speeches$faction_id == 6] <- "LINKE"
+speeches$faction_id[speeches$faction_id == 13] <- "FDP"
+
+
+
+speeches2001 <- speeches[speeches$date >= 2001,]
+
+#speeches2018_short <- speeches2018[1:100, ]
+
+
+
+
+#speeches2018_2 <-merge(speeches2018, factions, by.x = "faction_id", by.y = "id")
+
+#speeches_short <- speeches2018$speech_content[1:10]
+```
+
+
+```{r, warning=FALSE}
+
+# The text to be scored
+# Note: for pre-processing intricasies see main text section 3
+
+text <- speeches2001$speech_content
+
+
+# Clean text 
+# Note: no stopword removal here
+
+text2 <- text # Copy
+text2 <- gsub("[0-9]", "", text2, fixed = F) # Remove numbers (assumption: they bear no sentiment)
+text2 <- gsub("[[:punct:]]", "", text2, fixed = F) # Remove punctuation
+text2 <- gsub("\\s+", " ", text2, fixed = F) # Reduce multiple consecutive spaces to exactly one regular whitespace
+text2 <- paste(" ", text2, " ", sep = "") # Add whitespace left and right to ensure identification of leading and trailing terms
+text2 <- tolower(text2) # To lower case
+
+# Store number of terms in text bit
+
+nterms <- (nchar(text2) - nchar(gsub(" ", "", text2, fixed = T))) - 1 # Number of terms inferred from number of whitespaces (minus the leading one)
+
+
+# Loop over negation dictionary, and replace instances in text
+
+for (i in 1:nrow(neg.sent.dictionary)){
+  text2 <- gsub(neg.sent.dictionary$pattern[i], neg.sent.dictionary$replacement[i], text2, fixed = FALSE)
+}
+
+# Store which dictionary terms are found in example text h
+
+sent.dictionary$scored <- FALSE
+
+for (i in 1:nrow(sent.dictionary)){
+  sent.dictionary$scored[i] <- ifelse(grepl(sent.dictionary$feature[i], text2, fixed = TRUE),
+                                      TRUE, sent.dictionary$scored[i])
+}
+
+neg.sent.dictionary$scored <- FALSE
+
+for (i in 1:nrow(sent.dictionary)){
+  neg.sent.dictionary$scored[i] <- ifelse(grepl(neg.sent.dictionary$feature[i], text2, fixed = TRUE),
+                                      TRUE, neg.sent.dictionary$scored[i])
+}
+
+# Store detected terms
+scored_terms <- rbind(sent.dictionary[sent.dictionary$scored == TRUE, ],
+                 neg.sent.dictionary[neg.sent.dictionary$scored == TRUE, c("feature", "sentiment", "scored")])
+
+# Length-normalized sentiment score for speech content
+speeches2018_short$sentiment_score <- sum(as.integer(scored_terms$sentiment)) / nterms
+
+```
+
+
+
+```{r}
+speeches2001Party <- speeches2001 %>%
+  select(faction_id, sentiment_score, date) %>%
+  group_by(faction_id)%>%
+  reframe(
+    sentiment_score = sum(sentiment_score)
+  )
+  
+ggplot(speeches2001Party, aes(x = faction_id, y = sentiment_score))+
+  geom_bar(stat = "identity")
+```
+
+
+
+```{r}
+
+speeches2001Date <- speeches2001 %>%
+  select(faction_id, sentiment_score, date) %>%
+  group_by(date)%>%
+  reframe(
+    sentiment_score = sum(sentiment_score)
+  )
+
+ggplot(speeches2001Date, aes(date, sentimentscore))+
+  geom_line()
+
+
+```
+

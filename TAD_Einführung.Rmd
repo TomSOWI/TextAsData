@@ -1,0 +1,127 @@
+---
+title: "TDA_Einführung"
+output: html_document
+date: "2023-06-21"
+---
+
+### Setup ----------------------------------------------------------------------
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+speeches <- readRDS("./Corpus/opendiscourse_term20.RDS")
+names(speeches)
+
+raw_corpus <- corpus(speeches, text_field = "speech_content")
+head(raw_corpus)
+summary(raw_corpus)[,1:4]
+
+as.character(raw_corpus[2,])
+#\n\n({0})\n\ Zwischenrufe
+```
+
+```{r}
+?grep
+```
+
+### Cleaning -------------------------------------------------------------------
+
+```{r}
+#Achtung: in R muss man den Escape-Character \ verdopplen.
+raw_corpus <- gsub("\\(\\{\\d*\\}\\)", "", raw_corpus)
+raw_corpus <- gsub("[[:punct:]]", "", raw_corpus)
+raw_corpus <- gsub("\\n", " ", raw_corpus) #in BA-Projekt umsetzen
+as.character(raw_corpus)[2]
+```
+
+### Normalisieren --------------------------------------------------------------
+
+Strukturieren und Glätten des Korpus:
+
+-   Zerlegen der Dokumente in einzelne Tokens (einzelne Wörter, Sätze oder ggf. N-Gramme, je nach Analysestrategie)
+
+-   Lowercasing
+
+-   Lemmatisierung (Grundformbildung) oder Stemming (Wortsammbildung)
+
+-   Entfernen von Stopwords II (Füllwörter, Pronomen, Artikel))
+
+```{r}
+
+toks <- tokens(raw_corpus)
+head(toks)
+
+toks <- tokens_tolower(toks)
+head(toks)
+
+#stopwords
+sw <- stopwords("german")
+sw <- c(sw, "dass") #anpassen, da "dass" nicht enthalten in BA-Projekt
+toks <- tokens_remove(toks, sw)
+head(toks)
+
+#Stem
+toks <- tokens_wordstem(toks)
+head(toks)
+
+
+#remove Eröffnungsphrasen bevor man in tokens zerlegt in BA-Projekt
+```
+
+```{r}
+dtm <- dfm(toks)
+dtm
+
+dtm <- dfm(speeches$speech_content, 
+           tolower = TRUE, 
+           stem = TRUE, 
+           remove_punct = TRUE,
+           remove = stopwords("german"))
+```
+
+### 3.0.6 Filtern und Gewichten ------------------------------------------------
+
+**Filtern**
+
+Um die Feature-Matrix weiter zu reduzieren (Stichwort: computational efficency), kann man Begriffe ausschließen, die nur selten vorkommen. Das ist aber sorgsam abzuwägen: Wo ist der Threshold? Sind manche seltenen Worte nicht vielleicht besonders relevant?
+
+```{r}
+head(sort(docfreq(dtm), decreasing = T))
+```
+
+```{r}
+tail(sort(docfreq(dtm), decreasing = T))
+```
+
+```{r}
+dtm <- dfm_trim(dtm, min_docfreq = 2) #remove seltene wörter die nur einmal vorkommen
+head(sort(docfreq(dtm), decreasing = T))
+tail(sort(docfreq(dtm), decreasing = T))
+```
+
+### Gewichten mit tf-idf
+
+mit relativen Häufigkeiten
+
+```{r}
+dtm_weighted <- dfm_tfidf(dtm) 
+head(dtm_weighted)
+```
+
+## 4.1 Explorative Wordclouds
+
+```{r}
+dtm_most_freq <- dfm_trim(dtm, min_docfreq = 100) 
+textplot_wordcloud(dtm_most_freq)
+```
+
+```{r}
+issue_dict <- dictionary(list(corona = c("corona*", "covid*", "pandemie", "sars*"), 
+                              migration = c("job*", "business*", "econom*"),
+                              klima = c("klima*", "erderwärm*", "grad ziel"))) 
+dict_dtm <- dfm_lookup(dtm, issue_dict, nomatch = "_unmatched")
+tail(dict_dtm)
+
+```
