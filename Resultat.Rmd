@@ -1,0 +1,178 @@
+---
+title: "Untitled"
+output: html_document
+date: "2023-07-12"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+library(tidyverse)
+df <- read_delim("politbarometer_zeitreihe.csv", 
+    delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+df$`Ukraine/Krieg/Russland`
+```
+
+
+```{r}
+df$date <- paste0(substring(df$...2, 7,11),"-",substring(df$...2,4,5))
+df <- df[df$date >= 2013,]
+
+
+table(df$date)
+
+
+for (v in df$date){
+  if (v > 1){
+    
+  }
+}
+
+
+
+
+dfGroup1 <- df%>%
+  select(`Energie/Versorgung/Klima`,Coronavirus,`Ausländer/Integration/Flüchtlinge`,`Ukraine/Krieg/Russland`,date)%>%
+  group_by(date)%>%
+    mutate(`Energie/Versorgung/Klima`= if_else(is.na(`Energie/Versorgung/Klima`), 0, `Energie/Versorgung/Klima`))%>%
+    mutate(Coronavirus= if_else(is.na(Coronavirus), 0, Coronavirus))%>%
+    mutate(`Ausländer/Integration/Flüchtlinge`= if_else(is.na(`Ausländer/Integration/Flüchtlinge`), 0, `Ausländer/Integration/Flüchtlinge`))%>%
+    mutate(`Ukraine/Krieg/Russland`= if_else(is.na(`Ukraine/Krieg/Russland`), 0, `Ukraine/Krieg/Russland`))%>%
+  reframe(
+    Flüchtlinge = mean(`Ausländer/Integration/Flüchtlinge`),
+    Klima = mean(`Energie/Versorgung/Klima`),
+    Corona = mean(Coronavirus),
+    UkraineKrieg = mean(`Ukraine/Krieg/Russland`)
+    #Total = sum(Corona) + sum(Flüchtlinge) + sum(Klima) + sum(UkraineKrieg)
+  )
+
+dfGroup2 <- df%>%
+  select(`Energie/Versorgung/Klima`,Coronavirus,`Ausländer/Integration/Flüchtlinge`,`Ukraine/Krieg/Russland`,date)%>%
+  group_by(date)%>%
+    mutate(`Energie/Versorgung/Klima`= if_else(is.na(`Energie/Versorgung/Klima`), 0, `Energie/Versorgung/Klima`))%>%
+    mutate(Coronavirus= if_else(is.na(Coronavirus), 0, Coronavirus))%>%
+    mutate(`Ausländer/Integration/Flüchtlinge`= if_else(is.na(`Ausländer/Integration/Flüchtlinge`), 0, `Ausländer/Integration/Flüchtlinge`))%>%
+    mutate(`Ukraine/Krieg/Russland`= if_else(is.na(`Ukraine/Krieg/Russland`), 0, `Ukraine/Krieg/Russland`))%>%
+  reframe(
+    Flüchtlinge = mean(`Ausländer/Integration/Flüchtlinge`),
+    Klima = mean(`Energie/Versorgung/Klima`),
+    Corona = mean(Coronavirus),
+    UkraineKrieg = mean(`Ukraine/Krieg/Russland`),
+    Total = sum(Corona) + sum(Flüchtlinge) + sum(Klima) + sum(UkraineKrieg)
+  )
+
+  
+```
+
+# Populismus
+
+```{r}
+
+install.packages("devtools")
+devtools::install_github("jogrue/regexhelpeR")
+devtools::install_github("jogrue/multidictR")
+devtools::install_github("jogrue/popdictR")
+needed.packages <- c("quanteda", "tidyverse", "devtools", "regexhelpeR", "multidictR", "popdictR","stringr")
+invisible(lapply(needed.packages, library, character.only = TRUE))
+
+
+# Daten einlesen ---------------------------------------------------------------
+
+
+speeches <- readRDS("~/Documents/R Projekte/TextAsData/speeches_ab_2013.RDS")
+
+raw_corpus <- corpus(speeches, text_field = 6) 
+
+
+
+results <- run_popdict(raw_corpus, return_value = "count_at_level")
+saveRDS(results, file = "results2013.RDS")
+
+results_dataframe <- convert(results, to = "data.frame")
+results_dataframe$date_month <- str_sub(results_dataframe$date, end = -4)
+
+
+### Continued ------------------------------------------------------------------
+
+summary2 <- results_dataframe %>%
+  group_by(date_month) %>%
+  reframe(sentences = sum(n_sentences),
+            gruendl = sum(dict_gruendl_2020) / sentences * 100) %>%
+  ungroup
+
+
+```
+
+# Sentiments
+
+
+
+....
+
+
+
+## Merge Data
+```{r}
+dfMerged <- merge(summary2, dfGroup2, by.x = "date_month", by.y = "date")
+dfMerged <- dfMerged[dfMerged$sentences > 1000,]
+
+### z-transformation 
+
+dfMerged$Total_z <- scale(dfMerged$Total, center = T)
+dfMerged$gruendl_z <- scale(dfMerged$gruendl, center = T)
+
+
+
+```
+
+### Outlier test (legacy)
+
+```{r}
+library(Outliers)
+install.packages("outliers")
+
+library(outliers)
+
+outliers::grubbs.test(dfMerged$sentences, opposite = T)
+
+outliers::outlier(dfMerged$sentences, opposite = T)
+
+
+```
+
+
+### Grafik
+
+#### Deskriptive Krisen Darstellung
+```{r}
+dfMelt <- reshape2::melt(dfGroup2, id.vars = "date")
+
+
+ggplot(dfMelt, aes(x = date, y =value, group = variable, color = variable))+
+         geom_line()+
+         theme_bw()+
+         theme(axis.text.x = element_text(angle = 180))
+       
+```
+
+
+```{r}
+
+dfMerged_z <- select(dfMerged, date_month, Total_z, gruendl_z)
+
+dfMelt <- reshape2::melt(dfMerged_z, id.vars = "date_month")
+
+ggplot(dfMelt, aes(x = date_month, y =value, group = variable, color = variable))+
+         geom_line()+
+         theme_bw()+
+         theme(axis.text.x = element_text(angle = 90))
+```
+
+
+
+
+
