@@ -23,18 +23,6 @@ df$date <- paste0(substring(df$...2, 7,11),"-",substring(df$...2,4,5))
 df <- df[df$date >= 2013,]
 
 
-table(df$date)
-
-
-for (v in df$date){
-  if (v > 1){
-    
-  }
-}
-
-
-
-
 dfGroup1 <- df%>%
   select(`Energie/Versorgung/Klima`,Coronavirus,`Ausländer/Integration/Flüchtlinge`,`Ukraine/Krieg/Russland`,date)%>%
   group_by(date)%>%
