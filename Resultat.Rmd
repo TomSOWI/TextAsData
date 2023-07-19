@@ -71,7 +71,8 @@ invisible(lapply(needed.packages, library, character.only = TRUE))
 # Daten einlesen ---------------------------------------------------------------
 
 
-speeches <- readRDS("~/Documents/R Projekte/TextAsData/speeches_ab_2013.RDS")
+#speeches <- readRDS("~/Documents/R Projekte/TextAsData/speeches_ab_2013.RDS")
+speeches <- readRDS("~/R-Projekte/TextAsData/speeches_ab_2013.RDS")
 
 raw_corpus <- corpus(speeches, text_field = 6) 
 
@@ -106,7 +107,7 @@ summary2 <- results_dataframe %>%
 ## Merge Data
 ```{r}
 dfMerged <- merge(summary2, dfGroup2, by.x = "date_month", by.y = "date")
-dfMerged <- dfMerged[dfMerged$sentences > 1000,]
+dfMerged <- dfMerged[dfMerged$sentences > 1000,] #remove month with low speeches
 
 ### z-transformation 
 
@@ -160,7 +161,46 @@ ggplot(dfMelt, aes(x = date_month, y =value, group = variable, color = variable)
          theme(axis.text.x = element_text(angle = 90))
 ```
 
+### Massenpolarisierung
 
+```{r}
+library(haven)
+poladata <- read_sav("ZA2391_v14-0-0.sav")
 
+poladata <- poladata %>%
+  filter(v4 >= 2013)
+
+poladata <- poladata %>%
+  select(v3, v4, v22 )
+
+#das datum muss korrigiert werden
+library(stringr)
+poladata$v3 <- str_pad(poladata$v3, 2, pad = "0")
+poladata$v3 <- str_pad(poladata$v3, 3, pad = "-")
+
+poladata$date <- paste(poladata$v4, poladata$v3, sep = "")
+
+poladata$v22[poladata$v22 == 99] <- NA
+poladata <- na.omit(poladata)
+
+poladata <- poladata %>%
+  select(v22, date)
+
+summary_3 <- poladata %>%
+  group_by(date) %>%
+  summarise(sd_leftright = sd(v22))
+
+summary_3 <- summary_3 %>%
+  mutate(sd_leftright_z = scale(sd_leftright))
+##so, fertig.
+
+is.numeric(summary_3$sd_leftright_z)
+
+ggplot(summary_3, aes(x = date, y = sd_leftright, group = 1, color = sd_leftright))+
+  geom_line()+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90))
+
+```
 
 
