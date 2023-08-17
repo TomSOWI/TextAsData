@@ -14,7 +14,6 @@ library(tidyverse)
 df <- read_delim("politbarometer_zeitreihe.csv", 
     delim = ";", escape_double = FALSE, trim_ws = TRUE)
 
-df$`Ukraine/Krieg/Russland`
 ```
 
 
@@ -60,7 +59,7 @@ dfGroup2 <- df%>%
 
 ```{r}
 
-install.packages("devtools")
+#install.packages("devtools")
 devtools::install_github("jogrue/regexhelpeR")
 devtools::install_github("jogrue/multidictR")
 devtools::install_github("jogrue/popdictR")
@@ -104,63 +103,6 @@ summary2 <- results_dataframe %>%
 
 
 
-## Merge Data
-```{r}
-dfMerged <- merge(summary2, dfGroup2, by.x = "date_month", by.y = "date")
-dfMerged <- dfMerged[dfMerged$sentences > 1000,] #remove month with low speeches
-
-### z-transformation 
-
-dfMerged$Total_z <- scale(dfMerged$Total, center = T)
-dfMerged$gruendl_z <- scale(dfMerged$gruendl, center = T)
-
-
-
-```
-
-### Outlier test (legacy)
-
-```{r}
-library(Outliers)
-install.packages("outliers")
-
-library(outliers)
-
-outliers::grubbs.test(dfMerged$sentences, opposite = T)
-
-outliers::outlier(dfMerged$sentences, opposite = T)
-
-
-```
-
-
-### Grafik
-
-#### Deskriptive Krisen Darstellung
-```{r}
-dfMelt <- reshape2::melt(dfGroup2, id.vars = "date")
-
-
-ggplot(dfMelt, aes(x = date, y =value, group = variable, color = variable))+
-         geom_line()+
-         theme_bw()+
-         theme(axis.text.x = element_text(angle = 180))
-       
-```
-
-
-```{r}
-
-dfMerged_z <- select(dfMerged, date_month, Total_z, gruendl_z)
-
-dfMelt <- reshape2::melt(dfMerged_z, id.vars = "date_month")
-
-ggplot(dfMelt, aes(x = date_month, y =value, group = variable, color = variable))+
-         geom_line()+
-         theme_bw()+
-         theme(axis.text.x = element_text(angle = 90))
-```
-
 ### Massenpolarisierung
 
 ```{r}
@@ -196,11 +138,78 @@ summary_3 <- summary_3 %>%
 
 is.numeric(summary_3$sd_leftright_z)
 
-ggplot(summary_3, aes(x = date, y = sd_leftright, group = 1, color = sd_leftright))+
+ggplot(summary_3, aes(x = date, y = sd_leftright_z, group = 1, color = sd_leftright))+
   geom_line()+
   theme_bw()+
   theme(axis.text.x = element_text(angle = 90))
 
+summary_3
+
+```
+
+
+
+## Merge Data
+```{r}
+dfMerged <- merge(summary2, dfGroup2, by.x = "date_month", by.y = "date")
+dfMerged <- merge(dfMerged, summary_3,  by.x = "date_month", by.y = "date")
+dfMerged <- dfMerged[dfMerged$sentences > 1000,] #remove month with low speeches
+
+### z-transformation 
+
+dfMerged$Total_z <- scale(dfMerged$Total, center = T)
+dfMerged$gruendl_z <- scale(dfMerged$gruendl, center = T)
+
+
+
+```
+
+
+
+### Grafik
+
+#### Deskriptive Krisen Darstellung
+```{r}
+dfMelt <- reshape2::melt(dfGroup2, id.vars = "date")
+
+
+ggplot(dfMelt, aes(x = date, y =value, group = variable, color = variable))+
+         geom_line()+
+         theme_bw()+
+         theme(axis.text.x = element_text(angle = 180))
+       
+```
+
+
+```{r}
+
+dfMerged_z <- select(dfMerged, date_month, Total_z, gruendl_z, sd_leftright_z )
+
+dfMelt <- reshape2::melt(dfMerged_z, id.vars = "date_month")
+
+ggplot(dfMelt, aes(x = date_month, y =value, group = variable, color = variable))+
+         geom_line()+
+         theme_bw()+
+         theme(axis.text.x = element_text(angle = 90))
+```
+
+
+### Regressionen
+
+```{r}
+#AfD enters the parliament split
+dfMerged_z1 <- dfMerged_z[dfMerged_z$date_month < "2017-09",]
+dfMerged_z2 <- dfMerged_z[dfMerged_z$date_month > "2017-09",] 
+
+#Total period
+fit <- lm(gruendl_z ~ Total_z + sd_leftright_z, data = dfMerged_z)
+summary(fit)
+
+fit1 <- lm(gruendl_z ~ Total_z + sd_leftright_z, data = dfMerged_z1)
+summary(fit1)
+
+fit2 <- lm(gruendl_z ~ Total_z + sd_leftright_z, data = dfMerged_z2)
+summary(fit2)
 ```
 
 
